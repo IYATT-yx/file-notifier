@@ -1,0 +1,48 @@
+-- 创建邮箱配置表
+CREATE TABLE "emailConfig"
+(
+    id             INTEGER PRIMARY KEY,
+    smtpServer     TEXT    NOT NULL,
+    smtpPort       INTEGER NOT NULL,
+    encryption     TEXT    NOT NULL,
+    senderName     TEXT    NOT NULL,
+    senderEmail    TEXT    NOT NULL,
+    senderPassword TEXT    NOT NULL,
+    receiverEmail  TEXT    NOT NULL,
+    CHECK (encryption IN ('SSL', 'STARTTLS')),
+    CHECK (smtpPort BETWEEN 1 AND 65535),
+    CHECK (id = 0)
+);
+
+-- 为邮箱配置表插入一个样例
+INSERT INTO "emailConfig" (id, smtpServer, smtpPort, encryption, senderName, senderEmail, senderPassword, receiverEmail)
+VALUES (
+    0,
+    'smtp.example.com',
+    465,
+    'SSL',
+    '测试',
+    'smtp@example.com',
+    'password123',
+    'receiver@example.com'
+);
+
+-- 创建监控目录表
+CREATE TABLE "watchDir"
+(
+    id     INTEGER PRIMARY KEY,
+    dir    TEXT    NOT NULL,
+    status INTEGER NOT NULL,
+    CHECK (status IN (0, 1))
+);
+
+-- 创建程序状态表
+CREATE TABLE "Status"
+(
+    id INTEGER PRIMARY KEY,
+    status INTEGER NOT NULL DEFAULT 0,
+    CHECK (id = 0),
+    CHECK (status IN (0, 1))
+);
+
+INSERT INTO "Status" (id, status) VALUES (0, 0);
