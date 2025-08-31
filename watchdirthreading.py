@@ -14,29 +14,37 @@ from time import sleep
 
 Dialog()
 
+from watchdog.events import FileSystemEventHandler
+import os
+
 class FileWatchHandler(FileSystemEventHandler):
     def __init__(self):
         self.sendEmailQueue = QueueManager.get(const.QueueName.sendEmailQueue)
 
+    def shouldIgnore(self, path):
+        filename = os.path.basename(path)
+        return filename.startswith('~$')
+
     def on_created(self, event):
-        if not event.is_directory:
+        if not event.is_directory and not self.shouldIgnore(event.src_path):
             msg = f'创建新文件："{event.src_path}"'
             self.sendEmailQueue.put(msg)
 
     def on_modified(self, event):
-        if not event.is_directory:
+        if not event.is_directory and not self.shouldIgnore(event.src_path):
             msg = f'修改文件："{event.src_path}"'
             self.sendEmailQueue.put(msg)
 
     def on_deleted(self, event):
-        if not event.is_directory:
+        if not event.is_directory and not self.shouldIgnore(event.src_path):
             msg = f'删除文件："{event.src_path}"'
             self.sendEmailQueue.put(msg)
 
     def on_moved(self, event):
-        if not event.is_directory:
+        if not event.is_directory and not self.shouldIgnore(event.src_path) and not self.shouldIgnore(event.dest_path):
             msg = f'移动文件（或重命名）："{event.src_path}" ➡ "{event.dest_path}"'
             self.sendEmailQueue.put(msg)
+
 
 class WatchDirWorker:
     def __init__(self, watchDirObj: WatchDir, stopEvent: threading.Event):
