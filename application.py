@@ -56,7 +56,7 @@ class Application(tk.Frame):
         self.columnconfigure([0, 1, 2, 3, 4], weight=1)
 
         self.createWidgets()
-        self.checkCrash()
+        # self.checkCrash()
 
     def createWidgets(self):
         """创建应用程序控件"""
@@ -93,13 +93,13 @@ class Application(tk.Frame):
         # 启动服务
         self.root.after_idle(self.startServices)
 
-    def checkCrash(self):
-        """检查上次程序是否崩溃"""
-        if DatabaseOperator.readStatus() == 1:
-            msg = '警告：检测到上次程序异常关闭，请检查日志文件。'
-            Dialog.log(msg, Dialog.WARNING, proggressMsg=False)
-            mb.showwarning('警告', msg)
-        DatabaseOperator.updateStatus(1)
+    # def checkCrash(self):
+    #     """检查上次程序是否崩溃"""
+    #     if DatabaseOperator.readStatus() == 1:
+    #         msg = '警告：检测到上次程序异常关闭，请检查日志文件。'
+    #         Dialog.log(msg, Dialog.WARNING, proggressMsg=False)
+    #         mb.showwarning('警告', msg)
+    #     DatabaseOperator.updateStatus(1)
 
     def centerWindow(self):
         """窗口居中"""
@@ -223,11 +223,11 @@ class Application(tk.Frame):
         # 但是主线程里执行退出时用 after 修改数据库又会无效，尚未搞清楚原因？？？？？？？？
         # 所以就直接根据是主线程还是其它线程区别执行方法
         if threading.current_thread() == threading.main_thread():
-            DatabaseOperator.updateStatus(0)
+            # DatabaseOperator.updateStatus(0)
             DatabaseOperator.close()
             Dialog.log('主窗口执行退出流程\n', proggressMsg=False)
         else:
-            self.root.after(0, DatabaseOperator.updateStatus, 0)
+            # self.root.after(0, DatabaseOperator.updateStatus, 0)
             self.root.after(0, DatabaseOperator.close)
             Dialog.log('托盘执行退出流程\n', proggressMsg=False)
 

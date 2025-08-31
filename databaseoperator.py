@@ -125,24 +125,24 @@ class DatabaseOperator:
         DatabaseOperator.cursor.execute('delete from watchDir where id = ?', (watchDirId,))
         DatabaseOperator.connector.commit()    
 
-    @staticmethod
-    def updateStatus(status: int):
-        """更新状态
-        """
-        if DatabaseOperator.cursor is None:
-            raise RuntimeError('未连接数据库')
-        if status not in [0, 1]:
-            raise ValueError('status 只能是 0 或 1')
-        DatabaseOperator.cursor.execute('update status set status = ? where id = 0', (status,))
-        DatabaseOperator.connector.commit()
+    # @staticmethod
+    # def updateStatus(status: int):
+    #     """更新状态
+    #     """
+    #     if DatabaseOperator.cursor is None:
+    #         raise RuntimeError('未连接数据库')
+    #     if status not in [0, 1]:
+    #         raise ValueError('status 只能是 0 或 1')
+    #     DatabaseOperator.cursor.execute('update status set status = ? where id = 0', (status,))
+    #     DatabaseOperator.connector.commit()
 
-    @staticmethod
-    def readStatus() -> int:
-        """读取状态
-        """
-        if DatabaseOperator.cursor is None:
-            raise RuntimeError('未连接数据库')
-        DatabaseOperator.cursor.execute('select status from status where id = 0')
-        status = DatabaseOperator.cursor.fetchone()[0]
-        return status
+    # @staticmethod
+    # def readStatus() -> int:
+    #     """读取状态
+    #     """
+    #     if DatabaseOperator.cursor is None:
+    #         raise RuntimeError('未连接数据库')
+    #     DatabaseOperator.cursor.execute('select status from status where id = 0')
+    #     status = DatabaseOperator.cursor.fetchone()[0]
+    #     return status
 
