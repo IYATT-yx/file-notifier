@@ -19,6 +19,7 @@ import queue
 import os
 import pystray
 import threading
+import datetime
 
 Dialog()
 
@@ -166,7 +167,7 @@ class Application(tk.Frame):
                 msg = self.progressMsgQueue.get_nowait()
                 self.progressMsgCounter += 1
                 self.progressMsgShowText.config(state=tk.NORMAL)
-                self.progressMsgShowText.insert(tk.END, '【' + str(self.progressMsgCounter) + '】\n' + msg + '\n')
+                self.progressMsgShowText.insert(tk.END, '【' + str(self.progressMsgCounter) + '】' + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + '\n' + msg + '\n')
                 self.progressMsgShowText.see(tk.END)
                 self.progressMsgShowText.config(state=tk.DISABLED)
         except queue.Empty:
