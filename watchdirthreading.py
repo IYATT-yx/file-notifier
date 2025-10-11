@@ -22,8 +22,8 @@ class FileWatchHandler(FileSystemEventHandler):
         self.sendEmailQueue = QueueManager.get(const.QueueName.sendEmailQueue)
 
     def shouldIgnore(self, path):
-        filename = os.path.basename(path)
-        return filename.startswith('~$')
+        filename = os.path.basename(path).lower()
+        return filename.startswith('~$') or filename.endswith('.tmp') or filename.endswith('.bak')
 
     def on_created(self, event):
         if not event.is_directory and not self.shouldIgnore(event.src_path):
