@@ -67,8 +67,6 @@ class SmtpThreading(threading.Thread):
             # 如果没有获取到任何消息，继续等待
             if not msgList:
                 continue
-            else:
-                Dialog.log(f'本次准备通知文件变更数量：{count}')
 
             # 检查是否有停止信号
             if msg[0] is None:
@@ -77,10 +75,13 @@ class SmtpThreading(threading.Thread):
                 Dialog.log(msg, proggressMsg=False)
                 break
 
+            # 消息去重（消除短时间内重复触发事件的消息）
+            uniqueMsgList = list(dict.fromkeys(msgList))
             # 合并邮件内容
             emailStr = ''
-            for i in range(len(msgList)):
-                emailStr += f'{i+1} >>>\n{msgList[i]}\n' 
+            for i, m in enumerate(uniqueMsgList, 1):
+                emailStr += f'{i} >>>\n{m}\n'
+            Dialog.log(f'本次准备通知文件变更数量：{i}')
 
             # 发送合并后的邮件
             status, error = self.smtpClientObj.sendEmail('文件变更通知', emailStr)
