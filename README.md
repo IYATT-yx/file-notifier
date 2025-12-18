@@ -9,7 +9,7 @@
 ## 测试环境
 
 * Windows 11 24H2
-* Python 3.13.1（要求 Windows 8 及以上）
+* Python 3.13.11（要求 Windows 8 及以上）
 
 ## 使用
 
