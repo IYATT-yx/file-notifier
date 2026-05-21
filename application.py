@@ -233,7 +233,7 @@ class Application(tk.Frame):
             Dialog.log('托盘执行退出流程\n', proggressMsg=False)
 
         # 关闭窗口
-        self.root.after(0, self.root.destroy())
+        self.root.after(0, self.root.destroy)
 
     def onSwitchAutoStart(self):
         """切换开机自动动设置"""
