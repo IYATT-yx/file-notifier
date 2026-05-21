@@ -21,9 +21,10 @@ class FileWatchHandler(FileSystemEventHandler):
     def __init__(self):
         self.sendEmailQueue = QueueManager.get(const.QueueName.sendEmailQueue)
 
+    # 后面考虑增加一个用户可自定义忽略的扩展名清单
     def shouldIgnore(self, path):
         filename = os.path.basename(path).lower()
-        return filename.startswith('~$') or filename.endswith('.tmp') or filename.endswith('.bak')
+        return filename.startswith('~$') or filename.endswith('.tmp') or filename.endswith('.bak') or filename.endwith('^')
 
     def on_created(self, event):
         if not event.is_directory and not self.shouldIgnore(event.src_path):
