@@ -21,28 +21,23 @@ class FileWatchHandler(FileSystemEventHandler):
     def __init__(self):
         self.sendEmailQueue = QueueManager.get(const.QueueName.sendEmailQueue)
 
-    # 后面考虑增加一个用户可自定义忽略的扩展名清单
-    def shouldIgnore(self, path):
-        filename = os.path.basename(path).lower()
-        return filename.startswith('~$') or filename.endswith('.tmp') or filename.endswith('.bak') or filename.endwith('^')
-
     def on_created(self, event):
-        if not event.is_directory and not self.shouldIgnore(event.src_path):
+        if not event.is_directory:
             msg = f'创建新文件："{event.src_path}"'
             self.sendEmailQueue.put(msg)
 
     def on_modified(self, event):
-        if not event.is_directory and not self.shouldIgnore(event.src_path):
+        if not event.is_directory:
             msg = f'修改文件："{event.src_path}"'
             self.sendEmailQueue.put(msg)
 
     def on_deleted(self, event):
-        if not event.is_directory and not self.shouldIgnore(event.src_path):
+        if not event.is_directory:
             msg = f'删除文件："{event.src_path}"'
             self.sendEmailQueue.put(msg)
 
     def on_moved(self, event):
-        if not event.is_directory and not self.shouldIgnore(event.src_path) and not self.shouldIgnore(event.dest_path):
+        if not event.is_directory:
             msg = f'移动文件（或重命名）："{event.src_path}" ➡ "{event.dest_path}"'
             self.sendEmailQueue.put(msg)
 
@@ -62,6 +57,10 @@ class WatchDirWorker:
         self.stopEvent = stopEvent
 
     def run(self):
+        if not os.path.exists(self.dir):
+            Dialog.log(f'错误：监控目录不可达: {self.dir}', Dialog.ERROR)
+            return
+        
         observer = None
         try:
             fileWatchHandlerObj = FileWatchHandler()
@@ -71,6 +70,9 @@ class WatchDirWorker:
             Dialog.log(f'线程ID={self.id}，监控目录="{self.dir}" 已启动')
 
             while not self.stopEvent.is_set():
+                if not os.path.exists(self.dir):
+                    Dialog.log(f'警告：网络路径断开或无法访问: {self.dir}', Dialog.ERROR)
+                    break
                 sleep(1)
         except Exception as e:
             msg = f'错误：线程ID={self.id}，监控目录="{self.dir}"，捕获到异常：{common.exceptionTraceback2str(e)}'
@@ -78,7 +80,7 @@ class WatchDirWorker:
         finally:
             if observer:
                 observer.stop()
-                observer.join()
+                observer.join(timeout=3)
             msg = f'线程ID={self.id}，监控目录="{self.dir}" 已停止'
             Dialog.log(msg, Dialog.INFO)
 
