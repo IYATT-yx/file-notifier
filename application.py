@@ -47,6 +47,7 @@ class Application(tk.Frame):
         # 初始化准备
         super().__init__(root)
         self.root.protocol('WM_DELETE_WINDOW', self.onClosing)
+        self.root.bind('<Escape>', lambda event: self.onClosing())
         if hidden:
             Dialog.log('隐藏窗口启动', proggressMsg=False)
             self.root.withdraw()
