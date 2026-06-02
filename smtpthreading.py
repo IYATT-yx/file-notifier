@@ -55,7 +55,6 @@ class SmtpThreading(threading.Thread):
             msgList = []
             count = 0
 
-            # 从队列中批量获取消息，最多50个
             while count < const.WatchDir.maxMergeEventCount:
                 try:
                     msg = self.sendEmailQueue.get(timeout=1)
