@@ -18,28 +18,82 @@ from watchdog.events import FileSystemEventHandler
 import os
 
 class FileWatchHandler(FileSystemEventHandler):
-    def __init__(self):
+    def __init__(self, debounce_interval=3.0):
+        """
+        Args:
+            debounce_interval (float): 合并消息的窗口时间（秒），默认3秒内的消息会被合并
+        """
         self.sendEmailQueue = QueueManager.get(const.QueueName.sendEmailQueue)
+        self.debounce_interval = debounce_interval
+        
+        # 核心缓存结构：{ 文件路径: { "action": 最终动作, "timer": 定时器对象, "dest_path": 移动目标路径 } }
+        self.pending_events = {}
+        self.lock = threading.Lock()
+
+    def _push_to_queue(self, src_path):
+        """定时器触发时调用的函数，真正将合并后的消息推入队列"""
+        with self.lock:
+            event_data = self.pending_events.pop(src_path, None)
+            if not event_data:
+                return
+
+        action = event_data["action"]
+        dest_path = event_data.get("dest_path")
+
+        # 根据最终状态生成一条干净的消息
+        if action == "created":
+            msg = f'创建新文件："{src_path}"'
+        elif action == "modified":
+            msg = f'修改文件："{src_path}"'
+        elif action == "deleted":
+            msg = f'删除文件："{src_path}"'
+        elif action == "moved":
+            msg = f'移动文件（或重命名）："{src_path}" ➡ "{dest_path}"'
+        else:
+            return
+
+        self.sendEmailQueue.put(msg)
+
+    def _handle_event(self, src_path, action, dest_path=None):
+        """通用的事件防抖处理逻辑"""
+        with self.lock:
+            # 如果该文件已有定时任务，直接取消它（重新计时）
+            if src_path in self.pending_events:
+                self.pending_events[src_path]["timer"].cancel()
+
+            # 状态合并逻辑优化（例如：created + modified -> 依然是 created）
+            current_action = action
+            if src_path in self.pending_events:
+                prev_action = self.pending_events[src_path]["action"]
+                if prev_action == "created" and action == "modified":
+                    current_action = "created"
+
+            # 创建新的定时器
+            timer = threading.Timer(self.debounce_interval, self._push_to_queue, args=[src_path])
+            
+            self.pending_events[src_path] = {
+                "action": current_action,
+                "dest_path": dest_path,
+                "timer": timer
+            }
+            timer.start()
 
     def on_created(self, event):
         if not event.is_directory:
-            msg = f'创建新文件："{event.src_path}"'
-            self.sendEmailQueue.put(msg)
+            self._handle_event(event.src_path, "created")
 
     def on_modified(self, event):
         if not event.is_directory:
-            msg = f'修改文件："{event.src_path}"'
-            self.sendEmailQueue.put(msg)
+            self._handle_event(event.src_path, "modified")
 
     def on_deleted(self, event):
         if not event.is_directory:
-            msg = f'删除文件："{event.src_path}"'
-            self.sendEmailQueue.put(msg)
+            self._handle_event(event.src_path, "deleted")
 
     def on_moved(self, event):
         if not event.is_directory:
-            msg = f'移动文件（或重命名）："{event.src_path}" ➡ "{event.dest_path}"'
-            self.sendEmailQueue.put(msg)
+            # 对于移动操作，我们通常以源路径为 Key 记录
+            self._handle_event(event.src_path, "moved", dest_path=event.dest_path)
 
 
 class WatchDirWorker:
