@@ -1,3 +1,10 @@
+"""
+file: watchdirthreading.py
+description: 变更监视器线程
+author: IYATT-yx
+copyright:  Copyright (c) 2026 IYATT-yx.
+            Licensed under the MIT License. See LICENSE file in the project root for full license information.
+"""
 from uiwatchdiredit import WatchDir
 import constants as const
 from dialog import Dialog
@@ -32,27 +39,31 @@ class FileWatchHandler(FileSystemEventHandler):
 
     def _push_to_queue(self, src_path):
         """定时器触发时调用的函数，真正将合并后的消息推入队列"""
-        with self.lock:
-            event_data = self.pending_events.pop(src_path, None)
-            if not event_data:
+        try:
+            with self.lock:
+                event_data = self.pending_events.pop(src_path, None)
+                if not event_data:
+                    return
+
+            action = event_data["action"]
+            dest_path = event_data.get("dest_path")
+
+            # 根据最终状态生成一条干净的消息
+            if action == "created":
+                msg = f'创建新文件："{src_path}"'
+            elif action == "modified":
+                msg = f'修改文件："{src_path}"'
+            elif action == "deleted":
+                msg = f'删除文件："{src_path}"'
+            elif action == "moved":
+                msg = f'移动文件（或重命名）："{src_path}" ➡ "{dest_path}"'
+            else:
                 return
 
-        action = event_data["action"]
-        dest_path = event_data.get("dest_path")
-
-        # 根据最终状态生成一条干净的消息
-        if action == "created":
-            msg = f'创建新文件："{src_path}"'
-        elif action == "modified":
-            msg = f'修改文件："{src_path}"'
-        elif action == "deleted":
-            msg = f'删除文件："{src_path}"'
-        elif action == "moved":
-            msg = f'移动文件（或重命名）："{src_path}" ➡ "{dest_path}"'
-        else:
-            return
-
-        self.sendEmailQueue.put(msg)
+            self.sendEmailQueue.put(msg)
+        except Exception as e:
+            # 异步定时器内的异常如果逃逸，会导致整个程序崩溃且主线程无法捕获
+            Dialog.log(f"防抖队列推送发生异步异常: {str(e)}", Dialog.ERROR)
 
     def _handle_event(self, src_path, action, dest_path=None):
         """通用的事件防抖处理逻辑"""
@@ -98,45 +109,80 @@ class FileWatchHandler(FileSystemEventHandler):
 
 class WatchDirWorker:
     def __init__(self, watchDirObj: WatchDir, stopEvent: threading.Event):
-        """监控目录工作业务
-        
-        Args:
-            watchDirObj (WatchDir): 监控目录对象
-            stopEvent (threading.Event): 停止事件
-            sendEmailQueue (Queue): 发送邮件队列
-            root (tkinter.Tk): 主线程窗口对象
-        """
+        """监控目录工作业务"""
         self.id = watchDirObj.id
         self.dir = watchDirObj.dir
         self.stopEvent = stopEvent
 
     def run(self):
-        if not os.path.exists(self.dir):
-            Dialog.log(f'错误：监控目录不可达: {self.dir}', Dialog.ERROR)
-            return
+        Dialog.log(f'线程ID={self.id}，监控路径="{self.dir}" 守护进程已启动')
         
         observer = None
-        try:
-            fileWatchHandlerObj = FileWatchHandler()
-            observer = Observer()
-            observer.schedule(fileWatchHandlerObj, self.dir, recursive=True)
-            observer.start()
-            Dialog.log(f'线程ID={self.id}，监控目录="{self.dir}" 已启动')
+        is_connected = False  # 标记当前是否处于正常监控状态
 
-            while not self.stopEvent.is_set():
-                if not os.path.exists(self.dir):
-                    Dialog.log(f'警告：网络路径断开或无法访问: {self.dir}', Dialog.ERROR)
+        while not self.stopEvent.is_set():
+            # 1. 检查路径是否可用
+            path_exists = os.path.exists(self.dir)
+
+            if path_exists:
+                if not is_connected:
+                    # 路径从断开恢复，或者刚启动，尝试建立监控
+                    try:
+                        Dialog.log(f'线程ID={self.id}：检测到路径可用，正在初始化监控...')
+                        fileWatchHandlerObj = FileWatchHandler()
+                        observer = Observer()
+                        observer.schedule(fileWatchHandlerObj, self.dir, recursive=True)
+                        observer.start()
+                        
+                        is_connected = True
+                        Dialog.log(f'线程ID={self.id}，监控目录="{self.dir}" 已成功启动/恢复')
+                    except Exception as e:
+                        # 防止由于权限、刚开机网络未完全准备好等原因初始化失败
+                        Dialog.log(f'线程ID={self.id}：初始化监控失败，等待重试... 错误: {str(e)}', Dialog.ERROR)
+                        if observer:
+                            try:
+                                observer.stop()
+                            except:
+                                pass
+                        observer = None
+                        is_connected = False
+            else:
+                if is_connected:
+                    # 之前是连接的，现在断开了
+                    Dialog.log(f'警告：网络路径断开或无法访问，监控已暂停: {self.dir}', Dialog.ERROR)
+                    if observer:
+                        try:
+                            observer.stop()
+                            observer.join(timeout=2)
+                        except Exception as e:
+                            Dialog.log(f'线程ID={self.id}：停止旧监控时发生异常（可忽略）: {str(e)}', Dialog.DEBUG)
+                        observer = None
+                    is_connected = False
+
+            # 2. 如果处于连接状态，检查 observer 是否还在健康运行
+            if is_connected and observer:
+                if not observer.is_alive():
+                    Dialog.log(f'警告：线程ID={self.id} 的 Observer 异常终止，尝试重新连接...', Dialog.ERROR)
+                    is_connected = False
+                    observer = None
+
+            # 3. 频率控制：连接成功时每2秒检查一次路径；断开时每5秒检查一次，降低网络开销
+            sleep_time = 2 if is_connected else 5
+            
+            # 分段 sleep，保证 stopEvent 能被及时响应
+            for _ in range(sleep_time):
+                if self.stopEvent.is_set():
                     break
                 sleep(1)
-        except Exception as e:
-            msg = f'错误：线程ID={self.id}，监控目录="{self.dir}"，捕获到异常：{common.exceptionTraceback2str(e)}'
-            Dialog.log(msg, Dialog.ERROR)
-        finally:
-            if observer:
+
+        # 4. 线程退出清理
+        if observer:
+            try:
                 observer.stop()
                 observer.join(timeout=3)
-            msg = f'线程ID={self.id}，监控目录="{self.dir}" 已停止'
-            Dialog.log(msg, Dialog.INFO)
+            except:
+                pass
+        Dialog.log(f'线程ID={self.id}，监控目录="{self.dir}" 已彻底停止', Dialog.INFO)
 
 class WatchDirThreadPoolManager:
             def __init__(self, watchDirObjList: list[WatchDir]):
