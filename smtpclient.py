@@ -1,5 +1,9 @@
 """
-邮件发信客户端实现
+file: smtpclient.py
+description: 邮件发信客户端
+author: IYATT-yx
+copyright:  Copyright (c) 2026 IYATT-yx.
+            Licensed under the MIT License. See LICENSE file in the project root for full license information.
 """
 from dialog import Dialog
 

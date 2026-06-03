@@ -1,4 +1,10 @@
-"""应用"""
+"""
+file: application.py
+description: 主界面
+author: IYATT-yx
+copyright:  Copyright (c) 2026 IYATT-yx.
+            Licensed under the MIT License. See LICENSE file in the project root for full license information.
+"""
 import common
 import constants as const
 from uisystemtray import SystemTray

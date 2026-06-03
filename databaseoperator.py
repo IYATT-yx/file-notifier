@@ -1,4 +1,10 @@
-"""数据库操作"""
+"""
+file: databaseoperator.py
+description: 数据库操作
+author: IYATT-yx
+copyright:  Copyright (c) 2026 IYATT-yx.
+            Licensed under the MIT License. See LICENSE file in the project root for full license information.
+"""
 from smtpclient import EmailConfig
 from typewatchdir import WatchDir
 

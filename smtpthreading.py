@@ -1,4 +1,10 @@
-"""邮件发信线程"""
+"""
+file: smtpthreading.py
+description: 邮件发信执行线程
+author: IYATT-yx
+copyright:  Copyright (c) 2026 IYATT-yx.
+            Licensed under the MIT License. See LICENSE file in the project root for full license information.
+"""
 from smtpclient import EmailConfig, SmtpClient
 from dialog import Dialog
 from queuemanager import QueueManager

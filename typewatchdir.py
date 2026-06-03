@@ -1,5 +1,10 @@
-"""WatchDir 数据结构"""
-
+"""
+file: typewatchdir.py
+description: watchdir 内部类型
+author: IYATT-yx
+copyright:  Copyright (c) 2026 IYATT-yx.
+            Licensed under the MIT License. See LICENSE file in the project root for full license information.
+"""
 class WatchDir:
     def __init__(self, id: int, dir: str, status: int = 0):
         """监控目录对象

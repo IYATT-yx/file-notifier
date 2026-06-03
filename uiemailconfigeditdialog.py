@@ -1,4 +1,10 @@
-"""邮箱配置编辑控件"""
+"""
+file: uiemailconfigeditdialog.py
+description: 邮件配置界面
+author: IYATT-yx
+copyright:  Copyright (c) 2026 IYATT-yx.
+            Licensed under the MIT License. See LICENSE file in the project root for full license information.
+"""
 from smtpclient import EmailConfig, SmtpClient
 import constants as const
 from databaseoperator import DatabaseOperator
