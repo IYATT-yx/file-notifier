@@ -114,6 +114,17 @@ class WatchDirWorker:
         self.dir = watchDirObj.dir
         self.stopEvent = stopEvent
 
+    def _safe_check_path(self):
+        """安全地检查网络路径是否真正可用，防止 os.path.exists 虚假唤醒"""
+        try:
+            if not os.path.exists(self.dir):
+                return False
+            # 对于网络共享，仅 exists 不够，尝试读取属性以确保网络通道真的活着
+            os.stat(self.dir)
+            return True
+        except Exception:
+            return False
+
     def run(self):
         Dialog.log(f'线程ID={self.id}，监控路径="{self.dir}" 守护进程已启动')
         
@@ -122,11 +133,10 @@ class WatchDirWorker:
 
         while not self.stopEvent.is_set():
             # 1. 检查路径是否可用
-            path_exists = os.path.exists(self.dir)
+            path_exists = self._safe_check_path()
 
             if path_exists:
                 if not is_connected:
-                    # 路径从断开恢复，或者刚启动，尝试建立监控
                     try:
                         Dialog.log(f'线程ID={self.id}：检测到路径可用，正在初始化监控...')
                         fileWatchHandlerObj = FileWatchHandler()
@@ -137,50 +147,54 @@ class WatchDirWorker:
                         is_connected = True
                         Dialog.log(f'线程ID={self.id}，监控目录="{self.dir}" 已成功启动/恢复')
                     except Exception as e:
-                        # 防止由于权限、刚开机网络未完全准备好等原因初始化失败
                         Dialog.log(f'线程ID={self.id}：初始化监控失败，等待重试... 错误: {str(e)}', Dialog.ERROR)
-                        if observer:
-                            try:
-                                observer.stop()
-                            except:
-                                pass
+                        # 危险区域：初始化失败时，不要激进清理
                         observer = None
                         is_connected = False
             else:
                 if is_connected:
-                    # 之前是连接的，现在断开了
+                    # 关键修改点：网络路径已断开！
                     Dialog.log(f'警告：网络路径断开或无法访问，监控已暂停: {self.dir}', Dialog.ERROR)
+                    
+                    # 【核心避坑】绝对不要在共享网络断开后调用 observer.stop() 和 join()
+                    # 此时底层的 Windows 句柄已经因为网络断开而失效，调用 join 必然导致主线程或子线程永久死锁或崩溃
                     if observer:
                         try:
+                            # 仅尝试轻量级停止，绝不 join 阻塞
                             observer.stop()
-                            observer.join(timeout=2)
-                        except Exception as e:
-                            Dialog.log(f'线程ID={self.id}：停止旧监控时发生异常（可忽略）: {str(e)}', Dialog.DEBUG)
-                        observer = None
+                        except Exception:
+                            pass
+                        observer = None  # 直接丢弃引用，交给垃圾回收
                     is_connected = False
 
             # 2. 如果处于连接状态，检查 observer 是否还在健康运行
             if is_connected and observer:
-                if not observer.is_alive():
-                    Dialog.log(f'警告：线程ID={self.id} 的 Observer 异常终止，尝试重新连接...', Dialog.ERROR)
+                try:
+                    if not observer.is_alive():
+                        Dialog.log(f'警告：线程ID={self.id} 的 Observer 异常终止，尝试重新连接...', Dialog.ERROR)
+                        is_connected = False
+                        observer = None
+                except Exception:
+                    # 防止由于底层句柄彻底失效导致 is_alive() 本身抛出 Windows 异常
                     is_connected = False
                     observer = None
 
-            # 3. 频率控制：连接成功时每2秒检查一次路径；断开时每5秒检查一次，降低网络开销
-            sleep_time = 2 if is_connected else 5
+            # 3. 频率控制：断开时延长检查间隔（10秒），降低对断开网络重连的系统负担
+            sleep_time = 2 if is_connected else 10
             
-            # 分段 sleep，保证 stopEvent 能被及时响应
             for _ in range(sleep_time):
                 if self.stopEvent.is_set():
                     break
                 sleep(1)
 
-        # 4. 线程退出清理
+        # 4. 线程退出清理（正常退出时）
         if observer:
             try:
-                observer.stop()
-                observer.join(timeout=3)
-            except:
+                # 只有在网络正常连通的情况下退出，才执行标准的 stop 和 join
+                if self._safe_check_path():
+                    observer.stop()
+                    observer.join(timeout=2)
+            except Exception:
                 pass
         Dialog.log(f'线程ID={self.id}，监控目录="{self.dir}" 已彻底停止', Dialog.INFO)
 
